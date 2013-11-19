@@ -107,8 +107,6 @@ function try_recurse_without_bounding_empties(line)
 	--  empties AND bounding full clues, we'd need to check and trim clues as well.
 
 	-- sanity check and bail if needed
-	local moves
-	moves = {}
 	if (starttile == 1) and (endtile == line:getLength()) then
 		-- we're still aiming for the whole string, which means that we didn't find *any*
 		-- bounding empties and should definitely not recurse because nobody likes a stack overflow
@@ -122,13 +120,22 @@ function try_recurse_without_bounding_empties(line)
 		return nil
 	end
 
+	local moves
+	moves = {}
 	-- get our recurse on
 	print("Oughta recurse between " .. starttile .. " and " .. endtile)
 	-- pass a subline to solve_line, get moves back, adjust those moves by the difference between
 	--  starttile and 1 to put them into the proper sync with the original full line, then
 	--  return those moves
+	moves = solve_line(line:subline(starttile, endtile, 1, table.getn(line:getClues())) )
+	if not moves then
+		-- came back empty! Eff this.
+		return nil
+	end
 
-	moves = nil
+	for i,v in ipairs(moves) do
+		v[1] = v[1] + starttile - 1
+	end	
 	return moves
 
 end

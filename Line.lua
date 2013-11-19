@@ -108,6 +108,11 @@ function subline(line, starttile, endtile, startclue, endclue)
 	return newline
 end	
 
+-- set the list of clues associated with this line to new list
+function setClues(line, c)
+	line.clue_list = c
+end
+
 -- instantiate a Line object with a list of Tiles
 function new(tiles)
 	local o = {}
@@ -128,6 +133,8 @@ function new(tiles)
 	o.check_solved = check_solved
 	o.is_solved = is_solved
 	o.reverse = reverse
+	o.subline = subline
+	o.setClues = setClues
 
 	create_clues(o)
 
