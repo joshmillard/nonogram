@@ -1,1 +1,9 @@
 YOU ARE READING ME
+
+Nonograms (aka Picross, aka paint-by-numbers, aka a bunch of other brand names people keep trying to make happen) are a constraint-based 2D puzzle where the player uses iterative deductive rules to reveal successively more of a lo-res monochrome pixel-art image.
+
+This is intended to be a game client, an editor, and a solver/validator: with it you'll be able to solve nonogram puzzles, force the computer solve puzzles, and draw/validate your own nonogram layouts.  Of primary interest to me is creating a solver AI that approaches puzzles in a human-like step-by-step rule-based fashion.
+
+This is a project written in Lua using the love2d game development library; you'll need to install love2d to run the code successfully.  You can get it here:
+
+https://love2d.org/
