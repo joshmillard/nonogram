@@ -277,5 +277,12 @@ function draw_board()
 		end
 	end
 
+	if b:is_solved() then
+		love.graphics.setColor(40,40,40)
+		love.graphics.rectangle("fill", 200, 10, 200, 30) 
+		love.graphics.setColor(0,255,0)
+		love.graphics.print("Puzzle solved!", 260, 20)
+	end
+
 end
 

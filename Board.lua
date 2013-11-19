@@ -71,6 +71,14 @@ function create_board_from_file(b, puzzlename)
 	end			
 	-- and get clues for our rows and columns	
 	b:calculate_clues()
+
+	-- and check if any of these brand new lines are already solved (aka 0 clues)
+	for y=1, b.height do
+		b.row_list[y]:check_solved()
+	end
+	for x=1, b.width do
+		b.column_list[x]:check_solved()
+	end
 end
 
 -- read a puzzle defintion from provided file and 
@@ -202,6 +210,23 @@ the solvedness of clues on that lines, and the solvedness of the board as a whol
 --]]
 	board.row_list[y]:check_solved()
 	board.column_list[x]:check_solved()
+	board:check_solved()
+end
+
+function check_solved(board)
+	for y=1, board.height do
+		if not board.row_list[y]:is_solved() then
+			board.solved = false
+			return
+		end
+	end
+	for x=1, board.width do
+		if not board.column_list[x]:is_solved() then
+			board.solved = false
+			return
+		end
+	end
+	board.solved = true
 end
 
 function getState(board, x, y)
@@ -270,6 +295,7 @@ function new(width, height)
 	o.calculate_clues = calculate_clues
 	o.is_row_solved = is_row_solved
 	o.is_column_solved = is_column_solved
+	o.check_solved = check_solved
 
 	o:create_blank_board(o.width, o.height)
 
