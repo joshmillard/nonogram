@@ -12,7 +12,7 @@ b = {} -- the board object
 
 -- handy constants for UI element placement
 BX = 180
-BY = 80
+BY = 180
 BSIZE = 20
 
 -- a list of levels for now
@@ -108,6 +108,13 @@ function love.keypressed(key)
 		print_moves() -- just a test thing to see if move lists are storing correctly 
 	elseif key == "i" then
 		increment_solver()
+	elseif key == "o" then
+		apply_solver_to_line()
+	elseif key == "k" then
+		apply_solver_to_line()
+		increment_solver()
+	elseif key == "l" then
+		sweep_solver()
 	end
 end
 
@@ -129,6 +136,40 @@ function increment_solver()
 			solver_index = solver_index + 1
 		end
 	end
+end
+
+-- apply the solve_line routine to the current target line
+function apply_solver_to_line()
+	-- feed our target line to the solver routine
+	local l
+	if solver_direction == "row" then
+		l = b:getRow(solver_index)
+	else
+		l = b:getColumn(solver_index)
+	end 
+	local newmoves = Solver.solve_line(l)
+
+	-- if it returns non-nil, it's with a list of indexes/boolean pairs into the current line
+	-- for tiles that are as yet not Known
+	if newmoves then
+		for i,v in ipairs(newmoves) do
+			if solver_direction == "row" then
+				guess_tile(v[1], solver_index, v[2])
+			else
+				guess_tile(solver_index, v[1], v[2])
+			end
+		end
+	end
+end
+
+-- run the solver for a whole loop through the lines of the board
+function sweep_solver()
+	local orig_index = solver_index
+	local orig_direction = solver_direction
+	repeat
+		increment_solver()
+		apply_solver_to_line()
+	until orig_index == solver_index and orig_direction == solver_direction
 end
 
 -- throwaway test for Move management
@@ -303,6 +344,16 @@ function draw_board()
 				love.graphics.print(cl[table.getn(cl) - i + 1]:getSize(), BX + x*BSIZE + 2, BY - i*15 + 10)
 			end
 		end
+	end
+
+	-- draw solver index pointer
+	if solver_direction == "row" then
+		love.graphics.setColor(255,0,0)
+		love.graphics.print("<", BX + (b:getWidth()+1)*BSIZE + 5, BY + solver_index*BSIZE + 2)
+	else
+		love.graphics.setColor(255,0,0)
+		love.graphics.print("^", BX + solver_index*BSIZE + 2, BY + (b:getHeight()+1)*BSIZE + 5)
+
 	end
 
 	-- acknowledge a finished puzzle, even

@@ -253,6 +253,14 @@ function getColumnClues(board, c)
 	return board.column_list[c]:getClues()
 end
 
+function getRow(board, r)
+	return board.row_list[r]
+end
+
+function getColumn(board, c)
+	return board.column_list[c]
+end
+
 function getElapsed(board)
 	return love.timer.getTime() - board.start_time
 end
@@ -296,6 +304,8 @@ function new(width, height)
 	o.is_row_solved = is_row_solved
 	o.is_column_solved = is_column_solved
 	o.check_solved = check_solved
+	o.getRow = getRow
+	o.getColumn = getColumn
 
 	o:create_blank_board(o.width, o.height)
 
