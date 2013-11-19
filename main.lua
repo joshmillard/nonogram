@@ -6,6 +6,7 @@ require "Tile"
 require "Line"
 require "Board"
 require "Move"
+require "Solver"
 
 b = {} -- the board object
 
@@ -19,6 +20,10 @@ puzzles = {"dolphin", "ducky", "gender", "longneck", "octopus", "stripes", "vass
 puzzleindex = 1
 
 peeking = false -- for peeking at the board during testing
+
+-- solver position tracking
+solver_direction = "row"
+solver_index = 1
 
 function love.load()
 
@@ -101,6 +106,28 @@ function love.keypressed(key)
 		load_next_puzzle()
 	elseif key == "m" then
 		print_moves() -- just a test thing to see if move lists are storing correctly 
+	elseif key == "i" then
+		increment_solver()
+	end
+end
+
+-- move the solver index along by one
+function increment_solver()
+	if solver_direction == "row" then
+		if solver_index == b:getHeight() then
+			-- end of our rows, move over to columns instead
+			solver_direction = "column"
+			solver_index = 1
+		else
+			solver_index = solver_index + 1
+		end
+	else
+		if solver_index == b:getWidth() then
+			solver_direction = "row"
+			solver_index = 1
+		else
+			solver_index = solver_index + 1
+		end
 	end
 end
 
@@ -183,6 +210,7 @@ function draw_board()
 	love.graphics.print("Size: " .. b:getWidth() .. "x" .. b:getHeight(), 20, 25)
 	love.graphics.print("Elapsed time: " .. math.floor(b:getElapsed()) .. " secs", 20, 40)
 	love.graphics.print("Errors: " .. b:getErrorCount(), 20, 55)
+	love.graphics.print("Solver: " .. solver_direction .. " " .. solver_index, 20, 70)
 
 	-- draw frame
 	love.graphics.setColor(40,40,40)
@@ -277,6 +305,7 @@ function draw_board()
 		end
 	end
 
+	-- acknowledge a finished puzzle, even
 	if b:is_solved() then
 		love.graphics.setColor(40,40,40)
 		love.graphics.rectangle("fill", 200, 10, 200, 30) 
