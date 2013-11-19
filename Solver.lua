@@ -22,6 +22,11 @@ a list of brain methods in a table and then iterate through that list of call na
 this simple try-and-return-if-successful loop instead of restating the little four-line block
 every single time.
 --]]
+	newmoves = try_recurse_without_bounding_empties(line)
+	if newmoves then
+		return newmoves
+	end
+
 	newmoves = try_empty(line)
 	if newmoves then
 		return newmoves
@@ -52,9 +57,82 @@ every single time.
 		return newmoves
 	end
 
+	newmoves = try_extend_and_bound_edge_clue(line:reverse())
+	if newmoves then
+		return mirror(newmoves, line)
+	end
+
 	return newmoves
 
 end
+
+-- returns a list of moves with positionally reversed indexes, for rectifying reverse line output
+function mirror(m, line)
+	for i,v in ipairs(m) do
+		v[1] = (line:getLength() + 1) - v[1]
+	end
+	return m
+end
+
+-- check for bounding empty tiles at the edges
+function try_recurse_without_bounding_empties(line)
+	local starttile 
+	local endtile 
+	local startclue
+	local endclue
+
+	-- find our first non-Empty edge tiles
+	starttile = 1
+	for i=starttile, line:getLength() do
+		if line:getKnown(i) and not line:getState(i) then
+			-- this is a bounding empty, subline shoudl start farther out
+			starttile = i + 1
+		else
+			-- non-empty, stop hemming the start in
+			break
+		end
+	end
+
+	endtile = line:getLength()
+	for i=endtile, 1, -1 do
+		if line:getKnown(i) and not line:getState(i) then
+			endtile = i - 1
+		else
+			break
+		end
+	end
+
+	-- note: we don't actually do anything with clues if we're just checking for bounding
+	--  empties, as by definition no clues get eliminated. For a full check against both bounding
+	--  empties AND bounding full clues, we'd need to check and trim clues as well.
+
+	-- sanity check and bail if needed
+	local moves
+	moves = {}
+	if (starttile == 1) and (endtile == line:getLength()) then
+		-- we're still aiming for the whole string, which means that we didn't find *any*
+		-- bounding empties and should definitely not recurse because nobody likes a stack overflow
+		return nil
+	end
+	if starttile > endtile then
+		-- some weird shit here that we're not accounting for
+		-- specifically, we're dealing with a full stretch of known-empty tiles, which means
+		-- we probably should never have gotten this far.
+		print("Bad recursion mojo: starttile larger than endtile!")
+		return nil
+	end
+
+	-- get our recurse on
+	print("Oughta recurse between " .. starttile .. " and " .. endtile)
+	-- pass a subline to solve_line, get moves back, adjust those moves by the difference between
+	--  starttile and 1 to put them into the proper sync with the original full line, then
+	--  return those moves
+
+	moves = nil
+	return moves
+
+end
+
 
 -- checks the line to see if it has an empty clue list
 function try_empty(line)
@@ -205,6 +283,11 @@ function try_extend_and_bound_edge_clue(line)
 		return nil
 	end
 
+--TODO: it's not sufficient to jsut check the above; we need to also return nil if there's
+-- a full clue and bounding empty here.  Though that shouldn't occur once we're properly
+-- checking for bounding empties and bounding bounded clues up at the top, so maybe the real
+-- to do item here is to get recursive calls of trimmed strings going...
+--   duck level shows current error
 	local target = line:getClues()[1]:getSize()
 	local moves
 	moves = {}

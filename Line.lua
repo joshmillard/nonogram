@@ -81,6 +81,33 @@ function is_solved(line)
 	return line.solved
 end
 
+-- return a new Line object with tiles and clues reversed
+function reverse(line)
+	local newtiles = {}
+	for i,v in ipairs(line.tile_list) do
+		table.insert(newtiles, 1, v)
+	end
+	return new(newtiles)
+end
+
+-- return a new Line object that is a subset of the original line's tiles and clues
+function subline(line, starttile, endtile, startclue, endclue)
+	local newtiles = {}
+	for i=starttile, endtile do
+		table.insert(newtiles, line:getTile(i))
+	end
+	
+	local newclues = {}
+	for i=startclue, endclue do
+		table.insert(newclues, line:getClues()[i])
+	end
+
+	local newline = new(newtiles)
+	newline:setClues(newclues)
+
+	return newline
+end	
+
 -- instantiate a Line object with a list of Tiles
 function new(tiles)
 	local o = {}
@@ -100,6 +127,8 @@ function new(tiles)
 	o.create_clues = create_clues
 	o.check_solved = check_solved
 	o.is_solved = is_solved
+	o.reverse = reverse
+
 	create_clues(o)
 
 	return o
