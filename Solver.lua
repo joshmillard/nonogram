@@ -37,7 +37,8 @@ fails to produce anything, we call it backward as well.
 		{ try_all_empties_accounted_for, false },
 		{ try_all_fulls_accounted_for, false },
 		{ try_extend_and_bound_edge_clue, true },
-		{ try_off_by_one, true }
+		{ try_off_by_one, true },
+		{ try_full_near_edge, true },
 	}
 
 	for i,v in ipairs(tricks) do
@@ -445,6 +446,53 @@ function try_off_by_one(line)
 	return nil
 end
 
+-- check to see if there's a full tile nearer the edge than the length of the first clue, and
+-- pad out to length of clue accordingly with Fulls
+-- REVERSIBLE
+function try_full_near_edge(line)
+	local s = line:getClues()[1]:getSize()
+	local padding = false
+	local moves
+	moves = {}
+	printline(line)
+	for i=1, s do
+		if line:getKnown(i) and line:getState(i) and not padding then
+			-- we know this is a Full tile, commence padding!
+			padding = true
+			print("Found something to pad!")
+		elseif not line:getKnown(i) and padding then
+			-- this should be Full as well!
+			table.insert(moves, {i, true})
+			print("Padding " .. i)
+		end
+	end
 
+	if table.getn(moves) == 0 then
+		return nil
+	end
+	
+	return moves
+end
 
-
+-- debugging utility, just prints what we know about current line
+function printline(line)
+	-- clues
+	local str
+	str = "Clues: {"
+	for i,v in ipairs(line:getClues()) do
+		str = str .. " " .. v:getSize()
+	end
+	str = str .. " }  "
+	for i=1, line:getLength() do
+		if line:getKnown(i) then
+			if line:getState(i) then
+				str = str .. "O"
+			else
+				str = str .. "X"
+			end
+		else
+			str = str .. "_"
+		end
+	end
+	print(str)
+end

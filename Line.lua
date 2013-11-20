@@ -92,10 +92,17 @@ end
 -- return a new Line object with tiles and clues reversed
 function reverse(line)
 	local newtiles = {}
+	local newclues = {}
 	for i,v in ipairs(line.tile_list) do
 		table.insert(newtiles, 1, v)
 	end
-	return new(newtiles)
+	for i,v in ipairs(line.clue_list) do
+		table.insert(newclues, 1, v)
+	end
+	local newline = new(newtiles)
+	newline:setClues(newclues)
+
+	return newline
 end
 
 -- return a new Line object that is a subset of the original line's tiles and clues
