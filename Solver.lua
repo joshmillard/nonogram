@@ -13,56 +13,47 @@ function solve_line(line)
 	newmoves = nil
 
 --[[ 
-Our prototypical block, each technique will return a list of move index/guess pairs if it finds
-anything; if it doesn't, we fail on toward the next technique.  If none succeed, we
-return an empty list.
+A trick is a function that take in a line object and tries to determine new information
+about the line according to some deductive process, returning either nil if it fails to
+develop new info or a list of index/guess values representing one or more moves that should
+be made on the board.
 
-Given the sameness of each of these calls, a more elegant approach would be to just register
-a list of brain methods in a table and then iterate through that list of call names with
-this simple try-and-return-if-successful loop instead of restating the little four-line block
-every single time.
+If a trick succeeds, we return the non-nil move list and are done. If a trick fails, we
+fall forward to the next trick.  If no tricks succeed, we fall out of the for loop and
+return a nil move list.
+
+Some tricks work from left-to-right across a line; it's simpler and less error-prone to 
+apply the trick once forward and once backward (right-to-left) than to implement the same trick 
+in both directions; for these reversible tricks, we call it forward and then, if that
+fails to produce anything, we call it backward as well.
 --]]
 
---	newmoves = try_recurse_without_bounding_empties(line)
-	newmoves = try_recurse_without_bounding_clues_and_empties(line)
-	if newmoves then
-		return newmoves
+
+	local tricks = {
+		{ try_recurse_without_bounding_clues_and_empties, false },
+		{ try_empty, false },
+		{ try_full, false },
+		{	try_perfect_fit, false },
+		{ try_all_empties_accounted_for, false },
+		{ try_all_fulls_accounted_for, false },
+		{ try_extend_and_bound_edge_clue, true }
+	}
+
+	for i,v in ipairs(tricks) do
+		newmoves = v[1](line)
+		if newmoves then
+			return newmoves
+		end
+
+		-- if this is a reversible function, try again with the reversed line
+		if v[2] then
+			newmoves = v[1](line:reverse())
+			if newmoves then
+				return mirror(newmoves, line)
+			end
+		end
 	end
 
-	newmoves = try_empty(line)
-	if newmoves then
-		return newmoves
-	end
-
-	newmoves = try_full(line)
-	if newmoves then
-		return newmoves
-	end
-
-	newmoves = try_perfect_fit(line)
-	if newmoves then
-		return newmoves
-	end
-
-	newmoves = try_all_empties_accounted_for(line)
-	if newmoves then
-		return newmoves
-	end
-
-	newmoves = try_all_fulls_accounted_for(line)
-	if newmoves then
-		return newmoves
-	end
-
-	newmoves = try_extend_and_bound_edge_clue(line)
-	if newmoves then
-		return newmoves
-	end
-
-	newmoves = try_extend_and_bound_edge_clue(line:reverse())
-	if newmoves then
-		return mirror(newmoves, line)
-	end
 
 	return newmoves
 
@@ -75,6 +66,8 @@ function mirror(m, line)
 	end
 	return m
 end
+
+--[[ This doesn't get us anything that the empties-and-fulls version doesn't, deprecating
 
 -- check for bounding empty tiles at the edges
 function try_recurse_without_bounding_empties(line)
@@ -141,6 +134,7 @@ function try_recurse_without_bounding_empties(line)
 	return moves
 
 end
+--]]
 
 -- check for bounding full clues and capping empties
 function try_recurse_without_bounding_clues_and_empties(line)
