@@ -36,7 +36,8 @@ fails to produce anything, we call it backward as well.
 		{	try_perfect_fit, false },
 		{ try_all_empties_accounted_for, false },
 		{ try_all_fulls_accounted_for, false },
-		{ try_extend_and_bound_edge_clue, true }
+		{ try_extend_and_bound_edge_clue, true },
+		{ try_off_by_one, true }
 	}
 
 	for i,v in ipairs(tricks) do
@@ -65,6 +66,15 @@ function mirror(m, line)
 		v[1] = (line:getLength() + 1) - v[1]
 	end
 	return m
+end
+
+-- utility function: given a list of clues, returns the sum of the sizes of those clues
+function sum_of_clues(c)
+	local sum = 0
+	for i, v in ipairs(c) do
+		sum = sum + v:getSize()
+	end
+	return sum
 end
 
 --[[ This doesn't get us anything that the empties-and-fulls version doesn't, deprecating
@@ -395,20 +405,13 @@ function try_all_fulls_accounted_for(line)
 end
 
 -- check for a full tile at line edge and extend it to clue length, add bounding empty
--- TODO: This works left-to-right; we should call it twice, once with the actual line and
---  once with a reversed-order line.  TODO: add a "reverse()" method to the Line object to
---  make it super simple and clean to get reverse-order version for these purposes.
+-- this is a reversible function
 function try_extend_and_bound_edge_clue(line)
 	if not (line:getKnown(1) and line:getState(1)) then
 		-- either the first tile is a mystery or it's known to be an empty, neither works for us
 		return nil
 	end
 
---TODO: it's not sufficient to jsut check the above; we need to also return nil if there's
--- a full clue and bounding empty here.  Though that shouldn't occur once we're properly
--- checking for bounding empties and bounding bounded clues up at the top, so maybe the real
--- to do item here is to get recursive calls of trimmed strings going...
---   duck level shows current error
 	local target = line:getClues()[1]:getSize()
 	local moves
 	moves = {}
@@ -426,12 +429,22 @@ function try_extend_and_bound_edge_clue(line)
 
 end
 
-
--- utility function: given a list of clues, returns the sum of the sizes of those clues
-function sum_of_clues(c)
-	local sum = 0
-	for i, v in ipairs(c) do
-		sum = sum + v:getSize()
+-- check to see if, for first clue of size n, tile n+1 is known to be Full; if so, tile 1 can *not*
+-- be Full as that would butt up against the known full tile that could not be part of that first
+-- clue's tiles.  Mark as empty!
+-- REVERSIBLE
+function try_off_by_one(line)
+	local n = line:getClues()[1]:getSize()
+	if line:getKnown(n + 1) and line:getState(n + 1) then
+		-- we know that tile n+1 is Full, so tile 1 must be Empty
+		if not line:getKnown(1) then
+			return { {1, false} }
+		end
 	end
-	return sum
+
+	return nil
 end
+
+
+
+
