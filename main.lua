@@ -148,6 +148,13 @@ function apply_solver_to_line()
 		l = b:getColumn(solver_index)
 	end
 	if l:is_solved() then
+--[[ TODO: change this so that instead of checking the solved state, we check the "changed" state;
+this accomplishes the same thing (as a solved line will not keep changing and so will be
+skipped after it's been solved) and will allow us to set the state of all lines to changed = true
+at board initialization so that even initially-solved lines like 0-clues would be visited once
+to have their empties filled regardless of whether solvedness is being treated as "all fulls
+revealed" or "all tiles full AND empty revealed".
+--]]
 		-- we shouldn't be trying to solve this line, because it's already solved!
 		print(solver_direction .. " " .. solver_index .. " is already solved! Skipping.")
 		return
