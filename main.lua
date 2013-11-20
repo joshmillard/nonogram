@@ -11,8 +11,8 @@ require "Solver"
 b = {} -- the board object
 
 -- handy constants for UI element placement
-BX = 180
-BY = 180
+BX = 150
+BY = 150
 BSIZE = 20
 
 -- a list of levels for now
@@ -146,6 +146,11 @@ function apply_solver_to_line()
 		l = b:getRow(solver_index)
 	else
 		l = b:getColumn(solver_index)
+	end
+	if l:is_solved() then
+		-- we shouldn't be trying to solve this line, because it's already solved!
+		print(solver_direction .. " " .. solver_index .. " is already solved! Skipping.")
+		return
 	end 
 	local newmoves = Solver.solve_line(l)
 
@@ -202,16 +207,24 @@ function guess_tile(x, y, guess)
 	end
 end
 
+-- reset solver index stuff
+function reset_solver()
+	solver_index = 1
+	solver_direction = "row"
+end
+
 -- generate a random board
 function generate_random_board()
 	b = Board.new(math.random(15) + 5, math.random(15) + 5)
 	fill_board_with_noise()
+	reset_solver()
 end
 
 -- load a puzzle by name
 function load_puzzle(name)
 	b = Board.new(1,1)
 	b:create_board_from_file(name)
+	reset_solver()
 end
 
 -- load the next puzzle in the list

@@ -22,7 +22,9 @@ a list of brain methods in a table and then iterate through that list of call na
 this simple try-and-return-if-successful loop instead of restating the little four-line block
 every single time.
 --]]
-	newmoves = try_recurse_without_bounding_empties(line)
+
+--	newmoves = try_recurse_without_bounding_empties(line)
+	newmoves = try_recurse_without_bounding_clues_and_empties(line)
 	if newmoves then
 		return newmoves
 	end
@@ -140,6 +142,124 @@ function try_recurse_without_bounding_empties(line)
 
 end
 
+-- check for bounding full clues and capping empties
+function try_recurse_without_bounding_clues_and_empties(line)
+	local starttile 
+	local endtile 
+	local startclue
+	local endclue
+
+	if table.getn(line:getClues()) == 0 then
+		-- if the clue list is empty, there's no reason to bother with all this, let's let
+		-- the simple try_empty routine deal with it.
+		return nil
+	end
+
+	-- find our first non-Empty edge tiles
+	starttile = 1
+	startclue = 1
+	local counting = false
+	local count = 0
+	for i=starttile, line:getLength() do
+		if line:getKnown(i) then
+			if not line:getState(i) then
+				-- this is a bounding empty, subline should start farther out
+				starttile = i + 1
+			else
+				-- we've got a Full here, let's proceed making sure the whole thing is here
+				if not counting then
+					counting = true
+					count = 1
+				else
+					count = count + 1
+				end
+				if count == line:getClues()[startclue]:getSize() then
+					-- we've got a whole clue here, let's increment startclue and set starttile
+					startclue = startclue + 1
+					count = 0
+					counting = false
+					starttile = i + 1
+					-- at this point it's clear the next tile is Empty; if it isn't already known to
+					-- be such, we should send back that move and call it.
+					if not line:getKnown(i + 1) then
+						print("in recurse, found uncapped clue...")
+						return { {i + 1, false} }
+					end
+				end
+			end
+		else			 
+			-- non-empty, stop hemming the start in
+			break
+		end
+	end
+
+	endtile = line:getLength()
+	endclue = table.getn(line:getClues())
+	counting = false
+	count = 0
+	for i=endtile, 1, -1 do
+		if line:getKnown(i) then
+			if not line:getState(i) then
+				endtile = i - 1
+			else
+				if not counting then
+					counting = true
+					count = 1
+				else
+					count = count + 1
+				end
+				if count == line:getClues()[endclue]:getSize() then
+					endclue = endclue - 1
+					count = 0
+					counting = false
+					endtile = i - 1
+					if not line:getKnown(i - 1) then
+						return { {i - 1, false} }
+					end
+				end
+			end
+		else
+			break
+		end
+	end
+
+	-- note: we don't actually do anything with clues if we're just checking for bounding
+	--  empties, as by definition no clues get eliminated. For a full check against both bounding
+	--  empties AND bounding full clues, we'd need to check and trim clues as well.
+
+	-- sanity check and bail if needed
+	if (starttile == 1) and (endtile == line:getLength()) then
+		-- we're still aiming for the whole string, which means that we didn't find *any*
+		-- bounding empties and should definitely not recurse because nobody likes a stack overflow
+		return nil
+	end
+	if starttile > endtile then
+		-- some weird shit here that we're not accounting for
+		-- specifically, we're dealing with a full stretch of known-empty tiles, which means
+		-- we probably should never have gotten this far.
+		print("Bad recursion mojo: starttile larger than endtile!")
+		return nil
+	end
+
+	local moves
+	moves = {}
+	-- get our recurse on
+	print("Oughta recurse between " .. starttile .. " and " .. endtile)
+	-- pass a subline to solve_line, get moves back, adjust those moves by the difference between
+	--  starttile and 1 to put them into the proper sync with the original full line, then
+	--  return those moves
+	moves = solve_line(line:subline(starttile, endtile, startclue, endclue) )
+	if not moves then
+		-- came back empty! Eff this.
+		return nil
+	end
+
+	for i,v in ipairs(moves) do
+		v[1] = v[1] + starttile - 1
+	end	
+	return moves
+
+end
 
 -- checks the line to see if it has an empty clue list
 function try_empty(line)

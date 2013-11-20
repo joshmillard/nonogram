@@ -43,11 +43,19 @@ end
 -- check the Known state of constituent tiles and update solved accordingly
 function check_solved(line)
 	for i=1, line.length do
+		if line.tile_list[i]:getKnown() == false then
+			line.solved = false
+			return
+		end
+--[[
+-- Experimentally rewriting solved to mean, not "we've found all the fulls", but "we've totally
+-- filled the line, fulls and empties".
 		if line.tile_list[i]:getKnown() == false and line.tile_list[i]:getState() == true then
 			-- we found an unrevealed Full tile, so this line can't be considered solved
 			line.solved = false
 			return
 		end
+--]]
 		-- if we got out, we must know about every Full tile already, huzzah!
 		line.solved = true
 	end
