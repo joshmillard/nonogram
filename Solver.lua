@@ -39,6 +39,7 @@ fails to produce anything, we call it backward as well.
 		{ try_extend_and_bound_edge_clue, true },
 		{ try_off_by_one, true },
 		{ try_full_near_edge, true },
+		{ try_pad_empties_on_single_clue, false },
 	}
 
 	for i,v in ipairs(tricks) do
@@ -77,6 +78,30 @@ function sum_of_clues(c)
 	end
 	return sum
 end
+
+-- debugging utility, just prints what we know about current line
+function printline(line)
+	-- clues
+	local str
+	str = "Clues: {"
+	for i,v in ipairs(line:getClues()) do
+		str = str .. " " .. v:getSize()
+	end
+	str = str .. " }  "
+	for i=1, line:getLength() do
+		if line:getKnown(i) then
+			if line:getState(i) then
+				str = str .. "O"
+			else
+				str = str .. "X"
+			end
+		else
+			str = str .. "_"
+		end
+	end
+	print(str)
+end
+
 
 --[[ This doesn't get us anything that the empties-and-fulls version doesn't, deprecating
 
@@ -474,25 +499,54 @@ function try_full_near_edge(line)
 	return moves
 end
 
--- debugging utility, just prints what we know about current line
-function printline(line)
-	-- clues
-	local str
-	str = "Clues: {"
-	for i,v in ipairs(line:getClues()) do
-		str = str .. " " .. v:getSize()
+-- if there's a single clue and at least one known full, check for tiles out of reach of the
+-- possible range of that clue and fill in empties
+function try_pad_empties_on_single_clue(line)
+	if table.getn(line:getClues()) ~= 1 then
+		return nil
 	end
-	str = str .. " }  "
+
+	local n = line:getClues()[1]:getSize()
+	local leftmost 
+	local rightmost
 	for i=1, line:getLength() do
-		if line:getKnown(i) then
-			if line:getState(i) then
-				str = str .. "O"
+		if line:getKnown(i) and line:getState(i) then
+			-- found a known Full tile
+			if not leftmost then
+				leftmost = i
+				rightmost = i
 			else
-				str = str .. "X"
+				rightmost = i
 			end
-		else
-			str = str .. "_"
 		end
 	end
-	print(str)
+
+	if not leftmost then
+		-- didn't find a Full tile, bail
+		return nil
+	end
+
+	local moves
+	moves = {}
+	-- okay, let's check for empties out of range on either side
+	for i=1, rightmost - n do
+		if not line:getKnown(i) then
+			table.insert(moves, {i, false})
+		end
+	end
+	for i=line:getLength(), leftmost + n, -1 do
+		if not line:getKnown(i) then
+			table.insert(moves, {i, false})
+		end
+	end
+
+	if table.getn(moves) == 0 then
+		-- didn't actually find anything new
+		return nil
+	end
+
+	return moves
 end
+
+
+
