@@ -50,6 +50,7 @@ be properly foolproof.
 		{ try_fill_bound_edgemost_clue, true },
 		{ try_unbounded_largest_clue, false },
 		{ try_single_clue_wider_than_half_the_line, false },
+		{ try_shift_and_overlap, false },
 	}
 
 	for i,v in ipairs(tricks) do
@@ -762,6 +763,65 @@ function try_single_clue_wider_than_half_the_line(line)
 	if table.getn(moves) == 0 then
 		return nil
 	end
+
+	return moves
+end
+
+-- gettin' serious: this does a full-line check for the leftmost and rightmost placement of
+-- the clue list with single-tile gaps, marking any tiles marked as filled by the same clue in
+-- both cases as Full.  Does not take into account the additional information available from 
+-- Known states; this works simply on the clues and line length.  A version considering the 
+-- further constraints of known Fulls and Empties would be even more powerful.
+--
+-- e.g. {3 1 2} XXXXXXXXXX
+-- left:        111_2_33__
+-- right:       __111_2_33
+-- overlap:       ^
+function try_shift_and_overlap(line)
+	local leftish = {}
+	local rightish = {}
+	local number_of_clues = table.getn(line:getClues()) 
+	local minimal_length = sum_of_clues(line:getClues()) + number_of_clues - 1
+	local shift = line:getLength() - minimal_length
+
+	-- prepad right-side render with 0s
+	for i=1, shift do
+		table.insert(rightish, 0)
+	end
+
+	-- render both with minimal gap contents
+	for i, v in ipairs(line:getClues()) do
+		for j=1, v:getSize() do
+			table.insert(leftish, i)
+			table.insert(rightish, i)
+		end
+		if i < number_of_clues then
+			table.insert(leftish, 0)
+			table.insert(rightish, 0)
+		end
+	end
+
+	-- and postpad left-side render with 0s
+	for i = minimal_length + 1, line:getLength() do
+		table.insert(leftish, 0)
+	end			
+
+	local moves
+	moves = {}
+	-- now compare the strings and try adding a Full where they meet up
+	for i=1, line:getLength() do
+		if leftish[i] == rightish[i] and leftish[i] ~= 0 then
+			if not line:getKnown(i) then
+				table.insert(moves, {i, true})
+			end
+		end
+	end
+	
+	if table.getn(moves) == 0 then
+		return nil
+	end
+
+	print("Shift and overlap, filling " .. table.getn(moves) .. " tiles.")
 
 	return moves
 end
