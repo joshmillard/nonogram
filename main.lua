@@ -106,6 +106,9 @@ function love.keypressed(key)
 		load_next_puzzle()
 	elseif key == "m" then
 		print_moves() -- just a test thing to see if move lists are storing correctly 
+
+	elseif key == "u" then
+		decrement_solver()
 	elseif key == "i" then
 		increment_solver()
 	elseif key == "o" then
@@ -134,6 +137,24 @@ function increment_solver()
 			solver_index = 1
 		else
 			solver_index = solver_index + 1
+		end
+	end
+end
+-- and reverse
+function decrement_solver()
+	if solver_direction == "row" then
+		if solver_index == 1 then
+			solver_direction = "column"
+			solver_index = b:getWidth()
+		else
+			solver_index = solver_index - 1
+		end
+	else
+		if solver_index == 1 then
+			solver_direction = "row"
+			solver_index = b:getHeight()
+		else
+			solver_index = solver_index - 1
 		end
 	end
 end

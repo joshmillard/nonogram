@@ -26,6 +26,12 @@ Some tricks work from left-to-right across a line; it's simpler and less error-p
 apply the trick once forward and once backward (right-to-left) than to implement the same trick 
 in both directions; for these reversible tricks, we call it forward and then, if that
 fails to produce anything, we call it backward as well.
+
+In principle, each of these tricks could be called independently, and a nonce semi-complete
+brain could be composed of a subset of the tricks for demonstrative purposes.  In practice,
+they're relying as written on the order of the and assumptions drawn from that, and would
+require additional sanity checks (for e.g. an empty clue string) at a per-trick level to
+be properly foolproof.
 --]]
 
 
@@ -40,6 +46,10 @@ fails to produce anything, we call it backward as well.
 		{ try_off_by_one, true },
 		{ try_full_near_edge, true },
 		{ try_pad_empties_on_single_clue, false },
+		{ try_empty_too_small_edgemost_gap, true },
+		{ try_fill_bound_edgemost_clue, true },
+		{ try_unbounded_largest_clue, false },
+		{ try_single_clue_wider_than_half_the_line, false },
 	}
 
 	for i,v in ipairs(tricks) do
@@ -479,16 +489,13 @@ function try_full_near_edge(line)
 	local padding = false
 	local moves
 	moves = {}
-	printline(line)
 	for i=1, s do
 		if line:getKnown(i) and line:getState(i) and not padding then
 			-- we know this is a Full tile, commence padding!
 			padding = true
-			print("Found something to pad!")
 		elseif not line:getKnown(i) and padding then
 			-- this should be Full as well!
 			table.insert(moves, {i, true})
-			print("Padding " .. i)
 		end
 	end
 
@@ -549,4 +556,212 @@ function try_pad_empties_on_single_clue(line)
 end
 
 
+-- Check to see if the gap of Unknown tiles between the edge and the first Empty tile is smaller 
+-- than the first clue (with no Full tiles in the interim); if so, those must be Empty tiles.
+-- REVERSIBLE
+function try_empty_too_small_edgemost_gap(line)
+	local n = line:getClues()[1]:getSize()
+	local empty = 0
+	for i=1, n do
+		if line:getKnown(i) and line:getState(i) then
+			-- found a full tile in this area, that won't work
+			return nil
+		elseif line:getKnown(i) and not line:getState(i) then
+			-- found an empty tile, that's all we needed to know!
+			empty = i
+			break
+		end
+	end
 
+	if empty == 0 then
+		-- we didn't find an empty in the clue-length run
+		return nil
+	end
+
+	-- fill everything from 1 to empty-1 with new Empty tiles
+	local moves
+	moves = {}
+	for i=1, empty - 1 do
+		table.insert(moves, {i, false})
+	end
+
+	return moves
+end
+
+
+-- check to see if a Full tile bound by an Empty tile can only be in the edgemost clue, and add Fulls
+-- as is applicable.  Rationale: given two clues in a list, they can appear at best as clue 1 + single
+-- tile gap + clue 2 + empty.  Therefore, if there's a full tile in a run of tiles of size no longer 
+-- than clue 1 + clue 2 (no gap) bounded by an empty, only clue 1 can actually be in there.
+-- REVERSIBLE
+function try_fill_bound_edgemost_clue(line)
+	local leftmost = 0
+	local rightmost = 0
+	local empty = 0
+	if table.getn(line:getClues()) < 2 then
+		-- if there aren't at least two clues, we don't need to do this because earlier rules
+		-- can handle the single-clue situation just fine
+		return nil
+	end 
+
+
+	local c1 = line:getClues()[1]:getSize()
+	local c2 = line:getClues()[2]:getSize()
+
+	for i=1, c1 + c2 + 1 do
+		if line:getKnown(i) and not line:getState(i) then
+			-- we found an empty tile, record position and bail
+			empty = i
+			break
+		elseif line:getKnown(i) and line:getState(i) then
+			-- we found a full tile; note the first one in leftmost, track farther one in rightmost 
+			if leftmost == 0 then
+				leftmost = i
+			end
+			rightmost = i
+		end
+	end
+
+	if empty == 0 then
+		-- we never found an empty tile in the revelant range of tiles, bail
+		return nil
+	end
+
+	if leftmost == 0 then
+		-- we never found a full tile in the empty-bounded range, bail
+		return nil
+	end
+
+	local moves
+	moves = {}
+	-- fill in outer empties
+	for i=1, rightmost - c1 do
+		-- any tiles sufficiently far from the far edged of known full tiles here is Empty
+		if not line:getKnown(i) then
+			table.insert(moves, {i, false})
+		end
+	end
+	for i=leftmost + c1, empty do
+		if not line:getKnown(i) then
+			table.insert(moves, {i, false})
+		end
+	end
+	-- and fill in Fulls
+	if leftmost < c1 then
+		-- bound out to c1 with what must be Fulls
+		for i=leftmost + 1, c1 do
+			if not line:getKnown(i) then
+				table.insert(moves, {i, true})
+			end
+		end
+	end
+	if rightmost > empty - c1 then
+		for i=empty - c1, rightmost do
+			if not line:getKnown(i) then
+				table.insert(moves, {i, true})
+			end
+		end
+	end
+
+
+	if table.getn(moves) == 0 then
+		-- no new moves found
+		return nil
+	end
+
+	return moves
+	
+end
+
+-- for the largest clue in the list, if we have any strings of fulls that length that aren't
+-- bounded on both ends by empties, add those empties.
+function try_unbounded_largest_clue(line)
+	local largest = 0
+	for i,v in ipairs(line:getClues()) do
+		if v:getSize() > largest then
+			largest = v:getSize()
+		end
+	end
+
+	if largest == 0 then
+		-- hrm, seems like there's no clues, abort
+		return nil
+	end
+
+	-- iterate across line, looking for largest-length runs of tiles
+	local moves
+	moves = {}
+	local start = 0 
+	local run = 0
+	for i=1, line:getLength() do
+		if line:getKnown(i) and line:getState(i) then
+			-- found a full tile
+			if start == 0 then
+				start = i
+				run = 1
+			else
+				run = run + 1
+			end
+			-- check if we've hit the length threshold
+			if run == largest then
+				-- this must be a full clue!  Bound it and reset counters for next possible match
+				if start > 1 then -- bounds check so we don't try to index off left side of board
+					if not line:getKnown(start - 1) then
+						table.insert(moves, {start - 1, false})
+print("unbounded capping left at " .. start - 1)	
+					end
+				end
+				if start + run <= line:getLength() then-- bounds check, right side
+					if not line:getKnown(start + run) then
+						table.insert(moves, {start + run, false})
+print("unbounded capping right at " .. start + run)
+					end
+				end
+				start = 0
+				run = 0
+			end
+		else
+			-- any time we find a tile that's not a known full, restart the counting
+			start = 0
+			run = 0
+		end
+	end
+
+	if table.getn(moves) == 0 then
+		-- found nothing
+		return nil
+	end
+
+	return moves
+end
+
+-- a reductive case of a general shift and overlap strategy that's easier to eyeball: if there's
+-- a single clue, and it's size is greater than half the length of the line, one or more tiles
+-- in the center of the line *must* be Full.
+function try_single_clue_wider_than_half_the_line(line)
+	if table.getn(line:getClues()) ~= 1 then
+		-- either too mahy or too few clues, let's bail
+		return nil
+	end
+
+	local s = line:getClues()[1]:getSize()
+	local l = line:getLength()
+	if s*2 <= l then
+		-- clue is too short to make use of this trick
+		return nil
+	end
+
+	local moves
+	moves = {}
+	for i = (l-s) + 1, s do
+		if not line:getKnown(i) then
+			table.insert(moves, {i, true})
+		end
+	end
+
+	if table.getn(moves) == 0 then
+		return nil
+	end
+
+	return moves
+end
