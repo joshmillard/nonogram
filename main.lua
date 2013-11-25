@@ -16,7 +16,7 @@ BY = 150
 BSIZE = 20
 
 -- a list of levels for now
-puzzles = {"dolphin", "ducky", "gender", "longneck", "octopus", "stripes", "vassal"}
+puzzles = {"dolphin", "ducky", "lizard", "cactus", "gender", "longneck", "octopus", "stripes", "vassal"}
 puzzleindex = 1
 
 peeking = false -- for peeking at the board during testing

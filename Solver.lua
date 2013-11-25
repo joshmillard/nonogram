@@ -51,6 +51,8 @@ be properly foolproof.
 		{ try_unbounded_largest_clue, false },
 		{ try_single_clue_wider_than_half_the_line, false },
 		{ try_shift_and_overlap, false },
+		{ try_recursive_fill_bound_edgemost_clue, true },
+		{ try_gapped_fulls_longer_than_longest_clue, false },
 	}
 
 	for i,v in ipairs(tricks) do
@@ -674,16 +676,23 @@ function try_fill_bound_edgemost_clue(line)
 	
 end
 
--- for the largest clue in the list, if we have any strings of fulls that length that aren't
--- bounded on both ends by empties, add those empties.
-function try_unbounded_largest_clue(line)
+-- utility function, returns size of largest clue(s) in list
+function get_largest_clue(clues)
 	local largest = 0
-	for i,v in ipairs(line:getClues()) do
+	for i,v in ipairs(clues) do
 		if v:getSize() > largest then
 			largest = v:getSize()
 		end
 	end
 
+	return largest
+end
+
+-- for the largest clue in the list, if we have any strings of fulls that length that aren't
+-- bounded on both ends by empties, add those empties.
+function try_unbounded_largest_clue(line)
+	local largest
+	largest = get_largest_clue(line:getClues())
 	if largest == 0 then
 		-- hrm, seems like there's no clues, abort
 		return nil
@@ -824,4 +833,188 @@ function try_shift_and_overlap(line)
 	print("Shift and overlap, filling " .. table.getn(moves) .. " tiles.")
 
 	return moves
+end
+
+-- a biggie: use the same approach as try_fill_bound_edgemost_clue, but then instead of
+-- just trying to do some work on that pre-empty segment, split the line into two segments
+-- and call solve_line on each recursively, then add up any returned moves to create a
+-- single set of moves to return
+function try_recursive_fill_bound_edgemost_clue(line)
+
+	local leftmost = 0
+	local rightmost = 0
+	local empty = 0
+	if table.getn(line:getClues()) < 2 then
+		-- if there aren't at least two clues, we don't need to do this because earlier rules
+		-- can handle the single-clue situation just fine
+		return nil
+	end 
+
+
+	local c1 = line:getClues()[1]:getSize()
+	local c2 = line:getClues()[2]:getSize()
+
+	for i=1, c1 + c2 + 1 do
+		if line:getKnown(i) and not line:getState(i) then
+			-- we found an empty tile, record position and bail
+			empty = i
+			break
+		elseif line:getKnown(i) and line:getState(i) then
+			-- we found a full tile; note the first one in leftmost, track farther one in rightmost 
+			if leftmost == 0 then
+				leftmost = i
+			end
+			rightmost = i
+		end
+	end
+
+	if empty == 0 then
+		-- we never found an empty tile in the revelant range of tiles, bail
+		return nil
+	end
+
+	if leftmost == 0 then
+		-- we never found a full tile in the empty-bounded range, bail
+		return nil
+	end
+
+print("recursing with sublines 1 to " .. empty - 1 .. " and " .. empty + 1 .. " to " .. line:getLength())
+	-- get two sublines: 1 to (empty - 1) with clue 1, and (empty + 1) to length with clues 2,...
+	local moves1
+	moves1 = solve_line(line:subline(1, empty - 1, 1, 1) )
+
+	local moves2
+	moves2 = solve_line(line:subline(empty + 1, line:getLength(), 2, table.getn(line:getClues())) )
+	if moves2 then
+		-- adjust move values based on subline start position
+		for i,v in ipairs(moves2) do
+			v[1] = v[1] + empty 
+		end	
+	end
+
+	local moves = {}
+	if moves1 and moves2 then
+		-- only need a union if both came back with something
+		moves = get_move_list_union(moves1, moves2)
+	elseif moves1 then
+		moves = moves1
+	elseif moves2 then
+		moves = moves2
+	else
+		-- if they're both empty bail
+		return nil
+	end
+
+local str = ""
+for i,v in ipairs(moves) do
+	str = str .. " " .. v[1]
+end
+print("Found " .. table.getn(moves) .. " new moves:" .. str)
+
+	return moves
+	
+end
+
+-- check for adjacent runs of full tiles separated by a single unknown tile, where the sum
+-- of the two fulls and the gap is greater than the length of the longest clue on the line.
+-- Such an unknown tile *must* be Empty.
+--
+-- e.g. {1 5 1 2} ____OOO_OO_____
+--                       ^
+function try_gapped_fulls_longer_than_longest_clue(line)
+	local largest
+	largest = get_largest_clue(line:getClues())
+
+	local left_index = 0
+	local right_index = 0
+	local left_length = 0
+	local right_length = 0
+	local gap = 0
+	local moves
+	moves = {}
+	for i=1, line:getLength() do
+		if line:getKnown(i) and line:getState(i) then 
+			if left_index == 0 then
+				-- just starting to build our first run of fulls
+				left_index = i
+				left_length = 1
+			elseif gap == 0 then
+				-- we're still building first run
+				left_length = left_length + 1
+			elseif right_index == 0 then
+				-- previous tile was gap, we're just starting in on second run
+				right_index = i
+				right_length = 1
+			else
+				-- still building second run
+				right_length = right_length + 1
+			end
+		elseif line:getKnown(i) and not line:getState(i) then
+			-- we came across an explicit empty tile, which means nothing to the left of it
+			-- can be part of our target pattern.  Reset the tracking variables.
+			left_index = 0
+			left_length = 0
+			right_index = 0
+			right_length = 0
+			gap = 0
+		else
+			-- this is an unknown tile that might be an empty
+			if gap == 0 and left_index ~= 0 then
+				gap = i
+			elseif gap > 0 and left_index ~= 0 then
+				-- oh no, two gaps in a row!  That ruins this particular process.
+				left_index = 0
+				left_length = 0
+				right_index = 0
+				right_length = 0
+			else
+				-- left_index == 0, ergo we're not building a full run yet and so don't
+				-- need to do anything in the face of a gap
+			end
+		end
+
+		-- after all that, check to see if have a gapped pair of full runs longer than the
+		-- longest clue. If not, do nothing; if so, mark the gap as Empty and make the right
+		-- run the new left run and keep going.
+		if right_length > 0 and left_length + right_length + 1 > largest then
+			table.insert(moves, {gap, false})
+			left_index = right_index
+			left_length = right_length
+			right_index = 0
+			right_length = 0
+			gap = 0
+		end
+
+	end	
+
+	if table.getn(moves) == 0 then
+		return nil
+	end
+
+local str = ""
+for i,v in ipairs(moves) do
+	str = str .. " " .. v[1]
+end
+print("Too-long gapped pair: placing Empties at:" .. str) 
+
+	return moves
+
+end
+
+-- give two lists of moves, return the union of thoses lists to eliminate dupes
+function get_move_list_union(m1, m2)
+	local hash = {}
+	for i,v in ipairs(m1) do
+		hash.v[1] = v[2]
+	end
+	for i,v in ipairs(m2) do
+		hash.v[1] = v[2]
+	end
+
+	local union = {}
+	for k,v in pairs(hash) do
+		table.insert(union, {k, v})
+	end
+
+	return union
 end
