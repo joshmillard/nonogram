@@ -53,6 +53,7 @@ be properly foolproof.
 		{ try_shift_and_overlap, false },
 		{ try_recursive_fill_bound_edgemost_clue, true },
 		{ try_gapped_fulls_longer_than_longest_clue, false },
+		{ try_brute_force, false },
 	}
 
 	for i,v in ipairs(tricks) do
@@ -1017,4 +1018,258 @@ function get_move_list_union(m1, m2)
 	end
 
 	return union
+end
+
+
+-- brute force iteration through all possible placements of clues on an unknown line
+-- Note: this is a far more computationally costly procedure than any of the other tricks
+--  in this solver; on the upside, it's also wholly rigorous.  Prioritizing other tricks
+--  and falling on this as a measure of last resort is a decent naive approach to solving.
+-- TODO: figure out why extra off-by-one tests are even occurring where the final clue is
+--  over the edge of the line by one.
+function try_brute_force(line)
+	local c = line:getClues()
+	local numclues = table.getn(c)
+	
+	local indices = {}
+	local limits = {}
+	local targetclue = numclues 
+
+	local tries = 0
+	local successes = 0
+
+	-- quick sanity check: if there's no clues, we're getting nothing done here
+	if table.getn(c) == 0 then
+		return nil
+	end
+
+	-- visual rendering of state for testing reference
+	local function print_state(state)
+		local state_str = ""
+		local known_str = ""
+		local error_str = ""
+		for i=1, line:getLength() do
+			state_str = state_str .. state[i]
+
+			if line:getKnown(i) and line:getState(i) then
+				known_str = known_str .. "O"
+			elseif line:getKnown(i) and not line:getState(i) then
+				known_str = known_str .. "x"
+			else
+				known_str = known_str .. " "
+			end
+
+			if line:getKnown(i) and line:getState(i) and state[i] == "_" then
+				error_str = error_str .. "f"
+			elseif line:getKnown(i) and not line:getState(i) and state[i] ~= "_" then
+				error_str = error_str .. "e"
+			else
+				error_str = error_str .. " "
+			end
+		end
+--		print("Known line:    " .. known_str)
+		print("Notional line: " .. state_str)
+--		print("Errors:        " .. error_str)
+	end 
+
+	-- check the current set of indices to see if the resulting state is valid
+	local function test_state(state)
+		-- questions: are any notional tiles place over known Empties? 
+		-- are any known Fulls unaccounted for by notional tiles?
+		local line_fulls = 0  -- debugging trackers for sanity checking against an off-by-one bug
+		local statefulls = 0 --  that's in the code at the moment
+		for i=1, line:getLength() do
+			if line:getKnown(i) and not line:getState(i) and state[i] ~= "_" then
+				-- we found what's known to be an Empty tile in the line, yet the proposed tile
+				-- is a Full.  Fail!
+				return false
+			elseif line:getKnown(i) and line:getState(i) and state[i] == "_" then
+				-- we found what's known to be a Full, yet the proposed tile is an Empty. Fail!
+				return false
+			end
+			line_fulls = sum_of_clues(c)
+			if state[i] ~= "_" then
+				statefulls = statefulls + 1
+			end
+		end
+
+		if line_fulls ~= statefulls then
+			-- shit went bonkers, this thing ain't valid
+--			print("Yikes! state should have " .. line_fulls .. " Fulls, has " .. statefulls)
+--			print_state(state)
+			return false
+		end
+
+		-- barring a failure above, this is a legit arrangement of states on the line
+		return true
+	end
+
+	-- build a line from the current indices
+	local function build_state()
+		-- fill line with empties
+		local state = {}
+		for i=1, line:getLength() do
+			state[i] = "_"
+		end
+
+		-- and write clues at indices
+		for i,v in ipairs(c) do
+			for j=1, v:getSize() do
+				state[j + indices[i] - 1] = i
+			end
+		end
+
+		return state
+	end
+
+	-- report if the targetclue is valid at its current index
+	local function test_clue()
+		local start = indices[targetclue]
+		local finish = start + c[targetclue]:getSize() - 1
+	
+		-- sanity check for TODO: off-by-one issue, never seems to trigger though. 	
+		if finish > line:getLength() then
+			-- it's over the edge, man!
+			print("Over the dge, man!")
+			return false
+		end
+
+		for i=start, finish do
+			if line:getKnown(i) and not line:getState(i) then
+				return false
+			end
+		end
+
+		return true
+	end
+
+	-- increment targetclue and pack rightward clues in with minimal gaps
+	local function reseat_indices()
+		indices[targetclue] = indices[targetclue] + 1
+		for i=targetclue + 1, numclues do
+			indices[i] = indices[i-1] + c[i-1]:getSize() + 1
+		end
+	end
+
+	-- increment indices looking for a valid state
+	local function nudge_state()
+		if targetclue == numclues then
+			indices[targetclue] = indices[targetclue] + 1
+		end
+		if indices[targetclue] > limits[targetclue] then
+			-- we're pushing clear off the edge of the line, we need to back up and move the previous
+			-- clue forward and start from there instead
+			targetclue = targetclue - 1
+			if targetclue > 0 then
+				reseat_indices()
+			end
+			return false
+		elseif not test_clue() then
+			-- function returns true if the current true is in a valid position, false if not
+			-- e.g. it covers only unknown or Full tiles
+			reseat_indices()
+			return false
+		else
+			-- we found an okay placement for this clue!  If we're currently incrementing something
+			-- other than the far right clue, let's increment the clue pointer and go further
+			if targetclue < numclues then
+				targetclue = numclues
+				return nudge_state()
+			else
+				-- otherwise, report a successful placement of the far right clue
+				return true
+			end
+		end
+	end
+
+	-- get leftmost indices for each clue
+	local function init_indices()
+		for i,v in ipairs(c) do
+			if i == 1 then
+				indices[i] = 1
+			else
+				indices[i] = indices[i-1] + c[i-1]:getSize() + 1
+			end
+		end
+	end
+
+	-- get the farthest right valid index position for each clue, to avoid a bunch of
+	-- extra unecessary processing of invalid states
+	local function init_limits()
+		local len = line:getLength()
+		for i=numclues, 1, -1 do
+			if i == numclues then
+				limits[i] = len - c[i]:getSize() + 1
+			else
+				limits[i] = limits[i+1] - c[i]:getSize() - 1
+			end
+		end
+	end
+
+	init_indices()
+	init_limits()
+	print("Beginning brute force...\n")
+
+	local leftmost	-- the leftmost valid configution we find...
+	local rightmost -- ...and the right most
+	local uncertain = {} -- a list of tiles that we can't say with certainty are empty
+
+	while targetclue > 0 do
+		tries = tries + 1
+		local candidate = build_state()
+		if test_state(candidate) then
+			if not leftmost then
+				-- the first valid configuration we find is inherently the state in which each clue
+				--  is shifted as far left as possible...
+				leftmost = candidate
+			end
+				-- ...and whichever the last valid state is that we find has clues shifted as far right
+				--  as possible, so we grab each new one as it comes, including the first.
+			rightmost = candidate
+			for i=1, line:getLength() do
+				-- update our list of "might be Full, might not" tiles
+				if candidate[i] ~= "_" then
+					uncertain[i] = true
+				end
+			end
+
+--			print_state(candidate)
+			successes = successes + 1
+		end
+		nudge_state()
+	end
+	print("...brute force terminated; " .. tries .. " tests, " .. successes .. " successes.")
+
+	-- do a final shift-and-overlap technique on the leftmost and rightmost, factoring in 
+	-- new known empties, and return a move list.
+	local moves
+	moves = {}
+	for i=1, line:getLength() do
+		if leftmost[i] == rightmost[i] then
+			if leftmost[i] ~= "_" then
+				-- it's a full!
+				if not line:getKnown(i) then
+					table.insert(moves, {i, true})
+				end
+			else
+				if not uncertain[i] then
+					-- it's a tile we're *sure* is empty in all possible configurations
+					if not line:getKnown(i) then
+						table.insert(moves, {i, false})
+					end
+				end
+			end
+		end
+	end
+
+print_state(leftmost)
+print_state(rightmost)
+
+	if table.getn(moves) == 0 then
+		-- none of these findings were new
+		return nil
+	end
+
+	return moves
+
 end

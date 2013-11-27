@@ -118,6 +118,10 @@ function love.keypressed(key)
 		increment_solver()
 	elseif key == "l" then
 		sweep_solver()
+	
+	elseif key == "b" then
+		brute_force()
+
 	end
 end
 
@@ -193,6 +197,19 @@ revealed" or "all tiles full AND empty revealed".
 			end
 		end
 	end
+end
+
+-- trigger a brute force routine test thingy
+function brute_force()
+	
+	local l
+	if solver_direction == "row" then
+		l = b:getRow(solver_index)
+	else
+		l = b:getColumn(solver_index)
+	end
+	
+	Solver.try_brute_force(l)
 end
 
 -- run the solver for a whole loop through the lines of the board
