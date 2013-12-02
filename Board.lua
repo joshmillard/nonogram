@@ -171,6 +171,9 @@ function addMove(board, x, y, guess, correct, time)
 	if not correct then
 		board.errors = board.errors + 1
 	end
+	-- reassert changed nature of the row and column for Solver purposes
+	board.row_list[y]:setChanged(true)
+	board.column_list[x]:setChanged(true)
 end
 
 function getMoves(board)

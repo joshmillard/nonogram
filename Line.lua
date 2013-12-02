@@ -128,6 +128,14 @@ function setClues(line, c)
 	line.clue_list = c
 end
 
+function setChanged(line, b)
+	line.changed = b
+end
+
+function getChanged(line)
+	return line.changed
+end
+
 -- instantiate a Line object with a list of Tiles
 function new(tiles)
 	local o = {}
@@ -135,7 +143,7 @@ function new(tiles)
 	o.tile_list = tiles or {}
 	o.length = table.getn(o.tile_list)
 	o.solved = false
-	o.changed = false
+	o.changed = true
 	o.clue_list = {}
 
 	o.getLength = getLength
@@ -150,6 +158,8 @@ function new(tiles)
 	o.reverse = reverse
 	o.subline = subline
 	o.setClues = setClues
+	o.setChanged = setChanged
+	o.getChanged = getChanged
 
 	create_clues(o)
 

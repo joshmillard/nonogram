@@ -118,7 +118,8 @@ function love.keypressed(key)
 		increment_solver()
 	elseif key == "l" then
 		sweep_solver()
-	
+	elseif key == ";" then
+		solve_puzzle()
 	elseif key == "b" then
 		brute_force()
 
@@ -172,7 +173,11 @@ function apply_solver_to_line()
 	else
 		l = b:getColumn(solver_index)
 	end
-	if l:is_solved() then
+--	if l:is_solved() then
+	if not l:getChanged() then
+		print("No change since last visit, skipping.")
+		return
+	elseif l:is_solved() then
 --[[ TODO: change this so that instead of checking the solved state, we check the "changed" state;
 this accomplishes the same thing (as a solved line will not keep changing and so will be
 skipped after it's been solved) and will allow us to set the state of all lines to changed = true
@@ -189,6 +194,7 @@ revealed" or "all tiles full AND empty revealed".
 	-- if it returns non-nil, it's with a list of indexes/boolean pairs into the current line
 	-- for tiles that are as yet not Known
 	if newmoves then
+		-- submit moves
 		for i,v in ipairs(newmoves) do
 			if solver_direction == "row" then
 				guess_tile(v[1], solver_index, v[2])
@@ -196,7 +202,10 @@ revealed" or "all tiles full AND empty revealed".
 				guess_tile(solver_index, v[1], v[2])
 			end
 		end
+		return true -- signal that we made progress
 	end
+
+	return false -- signal no progress
 end
 
 -- trigger a brute force routine test thingy
@@ -216,10 +225,23 @@ end
 function sweep_solver()
 	local orig_index = solver_index
 	local orig_direction = solver_direction
+	local progress = false
 	repeat
 		increment_solver()
-		apply_solver_to_line()
+		if apply_solver_to_line() then
+			progress = true
+		end
 	until orig_index == solver_index and orig_direction == solver_direction
+	return progress
+end
+
+-- keep sweeping until the AI stops making progress; either it will complete the puzzle, or
+--  the puzzle can't be completed
+function solve_puzzle()
+	local progress
+	repeat
+		progress = sweep_solver()
+	until not progress
 end
 
 -- throwaway test for Move management

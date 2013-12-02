@@ -56,6 +56,10 @@ be properly foolproof.
 		{ try_brute_force, false },
 	}
 
+	-- mark the line as unchanged, so that it won't be visited again unless we turn up some
+	-- new moves.
+	line:setChanged(false)
+
 	for i,v in ipairs(tricks) do
 		newmoves = v[1](line)
 		if newmoves then
